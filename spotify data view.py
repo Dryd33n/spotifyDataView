@@ -114,6 +114,8 @@ def apply_utc_offset(hour):
     if offset_time < 0:
         offset_time = 24 + offset_time
 
+    offset_time = 24 if (offset_time == 0) else offset_time
+
     return offset_time
 
 
@@ -142,19 +144,71 @@ def process_time_stamp(time_string: str) -> tuple[int, int, int, int, int]:
 
 
 def most_played_songs(count: int, streaming_data: pd.DataFrame) -> dict[int: SongData]:
+    print(f"""
+
+        ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+        ┃           TOP SONGS            ┃ 
+        ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+    Displays the total top {count} most played songs
+
+    """)
+
     print(streaming_data['TrackName'].value_counts().nlargest(count))
+    print("\n\n")
+
+
+def most_played_artists(count: int, streaming_data: pd.DataFrame):
+    print(f"""
+
+        ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+        ┃          TOP ARTISTS           ┃ 
+        ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+    Displays the total top {count} most played artists
+
+    """)
+
+    print(streaming_data['TrackArtist'].value_counts().nlargest(count))
+    print("\n\n")
+
+
+def most_played_albums(count: int, streaming_data: pd.DataFrame):
+    print(f"""
+
+        ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+        ┃           TOP ALBUMS           ┃ 
+        ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+    Displays the total top {count} most played albums
+
+    """)
+
+    print(streaming_data['TrackAlbum'].value_counts().nlargest(count))
+    print("\n\n")
 
 
 def total_listen_time(streaming_data: pd.DataFrame):
     time_played_ms = streaming_data['MsPlayed'].sum()
-    print('Total Listen Time:' + str((time_played_ms * (2.777778 * 10 ** -7))) + ' hours')
+
+    print("""
+
+        ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+        ┃      TOTAL LISTENING TIME      ┃ 
+        ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+    Displays the total time spent listening on spotify in hours.
+    
+    """)
+
+    print(f'Total Listen Time: {(time_played_ms * (2.777778 * 10 ** -7)):.2f} hours\n\n')
 
 
 def favourite_listening_times(streaming_data: pd.DataFrame):
     hour_ms_played_dict = {}
     hour_percent_played_dict = {}
 
-    for i in range(0, 24):
+    for i in range(1, 25):
         hour_ms_played_dict[i] = 0
 
     for row_data in streaming_data.itertuples():
@@ -170,15 +224,29 @@ def favourite_listening_times(streaming_data: pd.DataFrame):
     for key in hour_ms_played_dict:
         hour_percent_played_dict[key] = float((hour_ms_played_dict.get(key) / total_time)*100)
 
+    print("""
+    
+        ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+        ┃   FAVOURITE LISTENING TIMES    ┃ 
+        ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+    
+    Displays the percentage of time spent listening for each
+    hour of the day. 
+    """)
+
     for tup in hour_percent_played_dict.items():
         if tup[0] > 12:
             print(f'{tup[0]-12}pm: {tup[1]:.2f}%')
         else:
             print(f'{tup[0]}am: {tup[1]:.2f}%')
 
+    print('\n\n')
+
 
 def analyze_streaming_history(data: pd.DataFrame):
     most_played_songs(10, data)
+    most_played_albums(10, data)
+    most_played_artists(10, data)
     total_listen_time(data)
     favourite_listening_times(data)
 
