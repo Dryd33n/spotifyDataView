@@ -218,13 +218,11 @@ def favourite_listening_times(streaming_data: pd.DataFrame):
     hour_ms_played_dict = {}
     hour_percent_played_dict = {}
 
-    for i in range(1, 25):
+    for i in range(0, 24):
         hour_ms_played_dict[i] = 0
 
-    for row_data in streaming_data.itertuples():
-        row_data = row_data[1:]
-
-        hour_played = row_data[SONG_DATA_TS][3]
+    for row_data in streaming_data.itertuples(index=False):
+        hour_played = row_data[SONG_DATA_TS].hour
         ms_played = row_data[SONG_DATA_MS]
 
         hour_ms_played_dict[hour_played] += int(ms_played)
