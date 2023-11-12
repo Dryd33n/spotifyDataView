@@ -1,33 +1,13 @@
 from typing import Type
 import pandas as pd
+import matplotlib.pyplot as plt
 import numpy as np
 import doctest
 
-TimeStamp = tuple[int,  # 1 Year in the format (YYYY)
-int,  # 2 Month of the year (MM)
-int,  # 3 Day of the month (DD)
-int,  # 4 Hour of the day in 24 hour (HH)
-int]  # 5 Minute of the hour (MM)
+plt.rcParams['figure.dpi'] = 300
+plt.rcParams.update({'font.size': 7})
 
-PlayData = tuple[TimeStamp,  # 1 Timestamp of song listen
-str,  # 2 Platform listened on
-int,  # 3 Milliseconds played
-str,  # 4 Country played in
-str,  # 5 Track Name
-str,  # 6 Track Album
-str,  # 7 Track Artist
-str,  # 8 Track URI
-str,  # 9 Reason for song start
-str,  # 10 Reason for song end
-bool,  # 11 Shuffle
-bool,  # 12 Skipped
-bool]  # 13 Incognito Mode
-
-SongData = tuple[str,  # 1 Name
-str,  # 2 Album
-str,  # 3 Artist
-str]  # 4 URI
-
+# Data Frame Column Indexes
 SONG_DATA_TS = 0
 SONG_DATA_PLAT = 1
 SONG_DATA_MS = 2
@@ -50,6 +30,12 @@ STREAMING_DATA_PATH_LIST = ['Streaming_History_Audio_2017-2021_0.json',
                             'Streaming_History_Audio_2023_4.json',
                             'Streaming_History_Audio_2023_5.json']
 UTC_OFFSET = -8
+
+########################################################################################################################
+#                                                                                                                      #
+#                                                   DATA IMPORT                                                        #
+#                                                                                                                      #
+########################################################################################################################
 
 
 def import_streaming_history(filename: str) -> pd.DataFrame:
@@ -74,7 +60,7 @@ def import_streaming_history(filename: str) -> pd.DataFrame:
 
     for row_data in data.itertuples():
         if row_data[data_index['URI']]:
-            row_data_dict = {'Timestamp': process_time_stamp(row_data[data_index['TIME']]),
+            row_data_dict = {'Timestamp': pd.to_datetime(row_data[data_index['TIME']]),
                              'Platform': str(row_data[data_index['PLATFORM']]),
                              'MsPlayed': int(row_data[data_index['MSPLAYED']]),
                              'Country': str(row_data[data_index['COUNTRY']]),
@@ -107,14 +93,31 @@ def import_streaming_history_set(filename_list: list[str]) -> pd.DataFrame:
 
     return streaming_history
 
+#   ####################################################################################################################
+#   #                                                 DATA PROCESSING                                                  #
+#   ####################################################################################################################
+
 
 def apply_utc_offset(hour):
+    """
+    Applies the UTC offset to a given hour of the day, returning the offset hour.
+
+    >>> apply_utc_offset(0)
+    16
+    >>> apply_utc_offset(1)
+    17
+    >>> apply_utc_offset(8)
+    24
+    >>> apply_utc_offset(9)
+    1
+
+    :param hour:
+    :return:
+    """
     offset_time = hour + UTC_OFFSET
 
     if offset_time < 0:
         offset_time = 24 + offset_time
-
-    offset_time = 24 if (offset_time == 0) else offset_time
 
     return offset_time
 
@@ -143,7 +146,14 @@ def process_time_stamp(time_string: str) -> tuple[int, int, int, int, int]:
     return year, month, day, hour, minute
 
 
-def most_played_songs(count: int, streaming_data: pd.DataFrame) -> dict[int: SongData]:
+########################################################################################################################
+#                                                                                                                      #
+#                                                   DATA ANALYSIS                                                      #
+#                                                                                                                      #
+########################################################################################################################
+
+
+def most_played_songs(count: int, streaming_data: pd.DataFrame):
     print(f"""
 
         ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -251,4 +261,47 @@ def analyze_streaming_history(data: pd.DataFrame):
     favourite_listening_times(data)
 
 
+########################################################################################################################
+#                                                                                                                      #
+#                                                 PLOTTING FUNCTIONS                                                   #
+#                                                                                                                      #
+########################################################################################################################
+
+
+def plot_listening_time(data: pd.DataFrame):
+    streaming_epoch = data['Timestamp'].min()
+    plot_dict = {'Days': [],'Time of Day': []}
+
+    for tup in data.itertuples(index=False):
+        plot_dict.get('Days').append(tup[SONG_DATA_TS])
+        plot_dict.get('Time of Day').append(get_minute_of_day(tup[SONG_DATA_TS]))
+
+    print(plot_dict)
+
+    plot_df = pd.DataFrame.from_dict(plot_dict)
+
+    print(plot_df)
+    plot_df.plot.scatter(x='Days', y='Time of Day', s=0.01)
+
+    plt.show()
+
+
+def get_minute_of_day(time_stamp: pd.Timestamp) -> int:
+    return (time_stamp.hour * 60) + time_stamp.minute
+
+
+def get_time_since(streaming_epoch: pd.Timestamp, time_stamp: pd.Timestamp) -> float:
+    return (time_stamp - streaming_epoch).total_seconds()
+
+
+########################################################################################################################
+#                                                                                                                      #
+#                                                NOTES AND TEST CODE                                                   #
+#                                                                                                                      #
+########################################################################################################################
+
+
 analyze_streaming_history(import_streaming_history_set(STREAMING_DATA_PATH_LIST))
+
+plot_listening_time(import_streaming_history_set(STREAMING_DATA_PATH_LIST))
+
