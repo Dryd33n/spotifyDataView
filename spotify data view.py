@@ -1,11 +1,14 @@
+import math
 from typing import Type
 import pandas as pd
 import matplotlib.pyplot as plt
+from time import perf_counter
 import numpy as np
 import doctest
 
 plt.rcParams['figure.dpi'] = 300
-plt.rcParams.update({'font.size': 7})
+plt.rcParams.update({'font.size': 3})
+plt.style.use('dark_background')
 
 # Data Frame Column Indexes
 SONG_DATA_TS = 0
@@ -39,46 +42,63 @@ UTC_OFFSET = -8
 
 
 def import_streaming_history(filename: str) -> pd.DataFrame:
-    data_index = {
-        'TIME': 1,
-        'PLATFORM': 3,
-        'MSPLAYED': 4,
-        'COUNTRY': 5,
-        'NAME': 8,
-        'ARTIST': 9,
-        'ALBUM': 10,
-        'URI': 11,
-        'START': 15,
-        'END': 16,
-        'SHUFFLE': 17,
-        'SKIP': 18,
-        'INCOGNITO': 21
-    }
+    print(f'Importing data: {filename}')
+    start = perf_counter()
 
     data = pd.read_json('data/' + filename)
-    data_list = []
 
-    for row_data in data.itertuples():
-        if row_data[data_index['URI']]:
-            row_data_dict = {'Timestamp': pd.to_datetime(row_data[data_index['TIME']]),
-                             'Platform': str(row_data[data_index['PLATFORM']]),
-                             'MsPlayed': int(row_data[data_index['MSPLAYED']]),
-                             'Country': str(row_data[data_index['COUNTRY']]),
-                             'TrackName': str(row_data[data_index['NAME']]),
-                             'TrackAlbum': str(row_data[data_index['ALBUM']]),
-                             'TrackArtist': str(row_data[data_index['ARTIST']]),
-                             'URI': str(row_data[data_index['URI']]),
-                             'StartReason': str(row_data[data_index['START']]),
-                             'EndReason': str(row_data[data_index['END']]),
-                             'Shuffle': bool(row_data[data_index['SHUFFLE']]),
-                             'Skipped': bool(row_data[data_index['SKIP']]),
-                             'Incognito': bool(row_data[data_index['INCOGNITO']])}
+    data.drop(columns=['username',
+                       'ip_addr_decrypted',
+                       'user_agent_decrypted',
+                       'episode_name',
+                       'episode_show_name',
+                       'spotify_episode_uri'],
+              inplace=True)
 
-            data_list.append(row_data_dict)
+    data.rename(columns={'ts':                                 'Timestamp',
+                         'platform':                           'Platform',
+                         'ms_played':                          'MsPlayed',
+                         'conn_country':                       'Country',
+                         'master_metadata_track_name':         'TrackName',
+                         'master_metadata_album_artist_name':  'TrackAlbum',
+                         'master_metadata_album_album_name':   'TrackArtist',
+                         'spotify_track_uri':                  'URI',
+                         'reason_start':                       'StartReason',
+                         'reason_end':                         'EndReason',
+                         'shuffle':                            'Shuffle',
+                         'skipped':                            'Skipped',
+                         'offline':                            'Offline',
+                         'offline_timestamp':                  'OfflineTimestamp',
+                         'incognito_mode':                     'Incognito'},
+                inplace=True)
 
-    formatted_data = pd.DataFrame(data_list)
+    # Time Stamp Cleaning
+    data = clean_timestamps(data)
 
-    return formatted_data
+    end = perf_counter()
+    print(f'Successfully imported data, took {(end-start):.2f} seconds')
+
+    return data
+
+
+def clean_timestamps(data):
+    data['Timestamp'] = data['Timestamp'].map(pd.to_datetime)
+    data['OfflineTimestamp'] = data['OfflineTimestamp'].map(lambda ts: pd.to_datetime(ts).tz_localize('UTC'))
+    data['Timestamp'] = data.apply(lambda row: combine_timestamps(
+        row['Timestamp'], row['OfflineTimestamp']), axis=1)
+
+    data.drop(columns=['OfflineTimestamp'], inplace=True)
+
+    return data
+
+
+def combine_timestamps(timestamp: pd.Timestamp, offline_timestamp: pd.Timestamp) -> pd.Timestamp:
+    timestamp.floor('D')
+    time_delta = pd.Timedelta((offline_timestamp.hour * 60 * 60) +
+                              (offline_timestamp.minute * 60) +
+                              offline_timestamp.second)
+
+    return timestamp + time_delta
 
 
 def import_streaming_history_set(filename_list: list[str]) -> pd.DataFrame:
@@ -89,62 +109,9 @@ def import_streaming_history_set(filename_list: list[str]) -> pd.DataFrame:
 
     streaming_history = pd.DataFrame(pd.concat(df_list))
 
-    streaming_history.to_csv('out.csv', index=False)
+    streaming_history.to_csv('out.csv')
 
     return streaming_history
-
-#   ####################################################################################################################
-#   #                                                 DATA PROCESSING                                                  #
-#   ####################################################################################################################
-
-
-def apply_utc_offset(hour):
-    """
-    Applies the UTC offset to a given hour of the day, returning the offset hour.
-
-    >>> apply_utc_offset(0)
-    16
-    >>> apply_utc_offset(1)
-    17
-    >>> apply_utc_offset(8)
-    24
-    >>> apply_utc_offset(9)
-    1
-
-    :param hour:
-    :return:
-    """
-    offset_time = hour + UTC_OFFSET
-
-    if offset_time < 0:
-        offset_time = 24 + offset_time
-
-    return offset_time
-
-
-def process_time_stamp(time_string: str) -> tuple[int, int, int, int, int]:
-    """
-
-    Examples:
-    >>> process_time_stamp('2022-11-30T02:37:55Z')
-    (2022, 11, 30, 2, 37)
-
-    :param time_string:
-    :return:
-    """
-    time_string = time_string[:-1]
-    time_string = time_string.replace('T', '-')
-    time_string = time_string.replace(':', '-')
-    time_string = time_string.split('-')
-
-    year = int(time_string[0])
-    month = int(time_string[1])
-    day = int(time_string[2])
-    hour = apply_utc_offset(int(time_string[3]))
-    minute = int(time_string[4])
-
-    return year, month, day, hour, minute
-
 
 ########################################################################################################################
 #                                                                                                                      #
@@ -267,29 +234,20 @@ def analyze_streaming_history(data: pd.DataFrame):
 
 
 def plot_listening_time(data: pd.DataFrame):
-    streaming_epoch = data['Timestamp'].min()
-    plot_dict = {'Days': [],'Time of Day': []}
+    plot_df = data[['Timestamp']].copy()
+    plot_df['TimeOfDay'] = plot_df.map(get_second_of_day)
 
-    for tup in data.itertuples(index=False):
-        plot_dict.get('Days').append(tup[SONG_DATA_TS])
-        plot_dict.get('Time of Day').append(get_minute_of_day(tup[SONG_DATA_TS]))
+    plot_df.plot.scatter(x='Timestamp', y='TimeOfDay', s=0.01)
+    ax = plt.subplot()
 
-    print(plot_dict)
-
-    plot_df = pd.DataFrame.from_dict(plot_dict)
-
-    print(plot_df)
-    plot_df.plot.scatter(x='Days', y='Time of Day', s=0.01)
+    ax.set_yticks([0,           14400,   28800,    43200,     57600,    72000,    86400],
+                  ['12:00 PM', '4:00AM', '8:00AM', '12:00AM', '4:00PM', '8:00PM', '12:00PM'])
 
     plt.show()
 
 
-def get_minute_of_day(time_stamp: pd.Timestamp) -> int:
-    return (time_stamp.hour * 60) + time_stamp.minute
-
-
-def get_time_since(streaming_epoch: pd.Timestamp, time_stamp: pd.Timestamp) -> float:
-    return (time_stamp - streaming_epoch).total_seconds()
+def get_second_of_day(time_stamp: pd.Timestamp) -> int:
+    return (time_stamp.hour * 60 * 60) + (time_stamp.minute * 60) + time_stamp.second
 
 
 ########################################################################################################################
@@ -299,7 +257,13 @@ def get_time_since(streaming_epoch: pd.Timestamp, time_stamp: pd.Timestamp) -> f
 ########################################################################################################################
 
 
-analyze_streaming_history(import_streaming_history_set(STREAMING_DATA_PATH_LIST))
+# analyze_streaming_history(import_streaming_history_set(STREAMING_DATA_PATH_LIST))
 
-plot_listening_time(import_streaming_history_set(STREAMING_DATA_PATH_LIST))
+
+# plot_listening_time(import_streaming_history_set(STREAMING_DATA_PATH_LIST))
+# plot_listening_time(import_streaming_history('Streaming_History_Audio_2017-2021_0.json'))
+plot_listening_time(import_streaming_history('short_data.json'))
+
+# import_streaming_history('short_data.json')
+# import_streaming_history('Streaming_History_Audio_2017-2021_0.json')
 
