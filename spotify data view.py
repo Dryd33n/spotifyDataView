@@ -76,7 +76,7 @@ def import_streaming_history(filename: str) -> pd.DataFrame:
     data = clean_timestamps(data)
 
     end = perf_counter()
-    print(f'Successfully imported data, took {(end-start):.2f} seconds')
+    print(f'Successfully imported data, took {(end-start):.5f} seconds\n')
 
     return data
 
@@ -182,6 +182,7 @@ def total_listen_time(streaming_data: pd.DataFrame):
 
 
 def favourite_listening_times(streaming_data: pd.DataFrame):
+    # TODO OPTIMIZE FOR LOOP WITH LIST DROP VALUE AND APPLY OR MAP OR SOMETHING BUT MAKE IT LESS SLOW
     hour_ms_played_dict = {}
     hour_percent_played_dict = {}
 
@@ -234,8 +235,15 @@ def analyze_streaming_history(data: pd.DataFrame):
 
 
 def plot_listening_time(data: pd.DataFrame):
+    print("Filtering Data for listening time plot:")
+    filter_start = perf_counter()
+
     plot_df = data[['Timestamp']].copy()
     plot_df['TimeOfDay'] = plot_df.map(get_second_of_day)
+    print(f'Filtering took {(perf_counter() - filter_start):.5f} seconds\n')
+
+    print("Plotting Data for listening time:")
+    plot_start = perf_counter()
 
     plot_df.plot.scatter(x='Timestamp', y='TimeOfDay', s=0.01)
     ax = plt.subplot()
@@ -243,6 +251,7 @@ def plot_listening_time(data: pd.DataFrame):
     ax.set_yticks([0,           14400,   28800,    43200,     57600,    72000,    86400],
                   ['12:00 PM', '4:00AM', '8:00AM', '12:00AM', '4:00PM', '8:00PM', '12:00PM'])
 
+    print(f'Plot Displayed, took {(perf_counter() - plot_start):.5f} seconds\n')
     plt.show()
 
 
@@ -260,9 +269,9 @@ def get_second_of_day(time_stamp: pd.Timestamp) -> int:
 # analyze_streaming_history(import_streaming_history_set(STREAMING_DATA_PATH_LIST))
 
 
-# plot_listening_time(import_streaming_history_set(STREAMING_DATA_PATH_LIST))
+plot_listening_time(import_streaming_history_set(STREAMING_DATA_PATH_LIST))
 # plot_listening_time(import_streaming_history('Streaming_History_Audio_2017-2021_0.json'))
-plot_listening_time(import_streaming_history('short_data.json'))
+# plot_listening_time(import_streaming_history('short_data.json'))
 
 # import_streaming_history('short_data.json')
 # import_streaming_history('Streaming_History_Audio_2017-2021_0.json')
